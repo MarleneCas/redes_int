@@ -3,7 +3,7 @@ from grade import Grade
 #from entities.grade import Grade
 from node import Node
 from random import randint, random, uniform
-from matplotlib import pyplot as plt 
+#from matplotlib import pyplot as plt 
 import math
 
 #import matplotlib.pyplot as plt 
@@ -11,7 +11,7 @@ import math
 class Simulation:
 
     def __init__(self, mesageDifs, mesageSifs, mesageRts, mesageCts, mesageAck, mesageData, sigma,
-                 num_grades, size_buffer, ranuSleeping, lambda_pkt, max_mini_ranuras, num_nodos, var_u):
+                 num_grades, size_buffer, ranuSleeping, lambda_pkt, max_mini_ranuras, num_nodos, ):
         # Message variables
         self.mesageDifs = mesageDifs
         self.mesageRts = mesageRts
@@ -27,12 +27,14 @@ class Simulation:
         self.size_buffer = size_buffer
         self.num_grades = num_grades
         self.sigma = sigma
-        self.var_u= var_u
+        #self.var_u= var_u
         
         # Generacion de otras variables
         self.timeSlot = mesageDifs + (max_mini_ranuras * sigma) + mesageRts + (3 * mesageSifs) \
                         + mesageCts + mesageData + mesageAck
         self.timeCycleWork = (2 + ranuSleeping) * self.timeSlot
+        self.time_simulation = 0
+        self.lambda_pkt_2 = self.num_grades * self.num_nodos * self.lambda_pkt
         
         # Setting nodes and grades
         self.network = self.setting_entities()
@@ -43,18 +45,14 @@ class Simulation:
         self.pkt_arribed_sink = 0
 
         self.time_arribe = 0
-        self.time_simulation = 0
-        self.variable = 0
         
-        #self.var_u= 0
-        self.new_t= -(1/self.lambda_pkt)*log(1-self.var_u)
-        self.new_time_arribe= self.new_t*1+self.time_simulation
-        #self.new_time_a= 0
-    
+        self.new_time_arribe= 0
+
+        # Variables performance [6,5,4,...-1]   
+        # for i in range(6,-1,-1)
+        self.num_pkt_discart = [0 for i in range(num_grades)]
 
 
-        # Variables performance
-        self.numPktDiscart = [0 for i in range(num_grades)]
     def setting_entities(self):
         """
         Buildeing the LSN with nodes and grades
@@ -98,7 +96,13 @@ class Simulation:
         grade = self.network[ramdom_grade]
         node = grade.get_node_by_number_node(ramdom_node)
         # Adding
-        node.adding_pkt_to_buffer()
+        status_buffer = node.adding_pkt_to_buffer()
+        if status_buffer == True:
+            #print("No problem")
+            pass
+        else:
+            self.number_pkt_descarter_full_buffer = self.number_pkt_descarter_full_buffer + 1 
+            self.num_pkt_discart[ramdom_grade] = self.num_pkt_discart[ramdom_grade] + 1 
 
     def transmit_pkt_to_next_grade(self, num_grade):
         """
@@ -107,9 +111,13 @@ class Simulation:
         """
         # Call cantention process
         node_to_trasmit = self.contention_process(num_grade)
-        if node_to_trasmit == None:
+        if node_to_trasmit == False:
+            pass
+            #print("buffer vacio")
+        elif node_to_trasmit == None:
             self.number_colision_pkt = self.number_colision_pkt + 1
-            print("colision")
+            self.num_pkt_discart[num_grade] = self.num_pkt_discart[num_grade] + 1 
+            #print("colision")
         else:
             node_to_trasmit.transmiting_pkt_to_next_grade()
             index_node_transmit = node_to_trasmit.get_num_node()
@@ -120,10 +128,10 @@ class Simulation:
             val_grade_cero = self.verify_grade_zero_receive(next_num_grade, index_node_transmit)
             if val_grade_cero == True:
                 print("Recibio sink")
+                pass
             else:
+                pass
                 print("Recibio grado")
-
-
 
     def contention_process(self, num_grade):
         """
@@ -160,8 +168,12 @@ class Simulation:
         for node in list_nodes_with_pkt:
             node.set_value_mini_ranura()
             list_value_mini_ranuras.append(node.get_value_mini_ranura())
+        try:
+            min_value_ranura = min(list_value_mini_ranuras)
+        except ValueError:
+            print("No pkt to transmit")
+            return False
 
-        min_value_ranura = min(list_value_mini_ranuras)
         number_nodes_with_min_value = 0
         index_node_transmit = 0
 
@@ -199,34 +211,45 @@ class Simulation:
         verifi_space_node = node_to_receive.adding_pkt_to_buffer()
         if(verifi_space_node == False):
             self.number_pkt_descarter_full_buffer = self.number_pkt_descarter_full_buffer + 1
-            print("Buffer " +node_to_receive + "FULL")
+            self.num_pkt_discart[num_grade] = self.num_pkt_discart[num_grade] + 1 
+            print("Buffer " + str(node_to_receive) + "FULL")
         else:
             print("Grado " + str(num_grade))
             print(node_to_receive)
+            pass
 
     def ini_sim (self):
-        while self.time_arribe <= self.time_simulation:
-            self.variable = 0
-            
-            # Todo: u , nuevo t , ta
-            self.var_u= 1**6*random(1,1000)/1**6
-            #self.new_t=-(1/self.lambda_pkt)*log(1-self.var_u)
-            self.new_time_arribe=self.time_simulation+self.new_t
-            
-        
-            self.generating_pkt_ramdom_grade_and_node()
-            for num_grade in range(0,7):
+        while self.time_simulation < 1e3*self.timeCycleWork:
+            while self.time_arribe < self.time_simulation:
+                #self.variable = 0
+                
+                # Todo: u , nuevo t , ta
+                var_u= (randint(0,1e6))/1e6
+                #self.new_t=-(1/self.lambda_pkt)*log(1-self.var_u)
+                new_t= -1*(1/self.lambda_pkt)*log(1-var_u) #*(self.lambda_pkt_2)
+                self.time_arribe=self.time_simulation+new_t
+
+                print(var_u)
+                print(new_t)
+                print(self.time_arribe)
+                print(self.time_simulation)
+
+                self.generating_pkt_ramdom_grade_and_node()
+            for num_grade in range(6,-1,-1):
                 self.transmit_pkt_to_next_grade(num_grade)
 
+            self.time_simulation = self.time_simulation + self.timeCycleWork
+            
+            
     def print_network(self):
         """
         Display the node network
         :param:void
         :return:void
         """
-        print("El valor de u es: ", self.var_u)
-        print("El valor de la nueva t es:", self.new_t)
-        print ("El nuevo tiempo de arribo es:", self.new_time_arribe)
+        #print("El valor de u es: ", self.var_u)
+        #print("El valor de la nueva t es:", self.new_t)
+        #print ("El nuevo tiempo de arribo es:", self.new_time_arribe)
         print(len(self.network))
         for grade in self.network:
             print(grade)
@@ -238,12 +261,30 @@ class Simulation:
         #Debemos encontrar cuantos paquetes llegaron al sink
         #Para graficar:
         #x= self.setting_entities()
-        #y=self.pkt_arribed_sink
+        #y=self.pkt_arribed_sink/self.timeCycleWork
         #plt.plot(  self.num_grades, self.pkt_arribed_sink/1000)
-        x=[1,2,3]
-        y=[5,6,7]
+       
+    """
         plt.plot (x,y)
         plt.show()
         plt.xlabel('grados')
         plt.ylabel('Ppaquetes/ciclo')
         plt.title('throughput')
+        """
+        #Plotear pkts perdidos
+        #intervalos= [0,1,2,3,4,5,6]
+        #plot.hist(x=self.num_pkt_discart, bins=intervalos)
+        #plot.xlabel('num de paquetes')
+        #plot.ylabel('grados')
+        
+    def get_pkt_ciclo_throughtput(self):
+        resultThorughtput = self.pkt_arribed_sink/self.timeCycleWork
+        return resultThorughtput
+    """
+    def graf (self, num_grades,pkt_arribed_sink, timeCycleWork): 
+        plt.plot(num_grades, pkt_arribed_sink/timeCycleWork)
+        plt.show()
+        plt.xlabel('grados')
+        plt.ylabel('Ppaquetes/ciclo')
+        plt.title('throughput')
+    """

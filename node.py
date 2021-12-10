@@ -33,7 +33,7 @@ class Node:
         if self.buffer.count(1) == self.size_buffer:
             return False
         else:
-            for i in range(self.size_buffer):
+            for i in range(0,self.size_buffer):
                 if self.buffer[i] == 0:
                     # Available space in buffer
                     self.buffer[i] = 1
@@ -48,7 +48,7 @@ class Node:
         if self.buffer.count(1) == self.size_buffer:
             return False
         else:
-            for i in range(self.size_buffer-1, 0, -1):
+            for i in range(self.size_buffer-1, -1, -1):
                 if self.buffer[i] == 1:
                     self.buffer[i] = 0
                     return True
